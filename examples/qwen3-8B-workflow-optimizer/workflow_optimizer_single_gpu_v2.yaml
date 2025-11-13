@@ -160,6 +160,9 @@ actor_train:
 actor_infer:
   model_args:
     model_name_or_path: ${pretrain}
+    lora_target: ${lora_target}
+    lora_rank: ${lora_rank}
+    lora_alpha: ${lora_alpha}
     disable_gradient_checkpointing: true
     dtype: bf16
     model_type: ~
@@ -208,17 +211,15 @@ reference:
   device_mapping: list(range(0,1))
   infer_batch_size: 2
 
-# Reward Configuration (Using LLM Judge for 50-step test)
+# Reward Configuration (Using pre-computed performance_gain from data)
 rewards:
-  llm_judge:
-    worker_cls: roll.pipeline.rlvr.rewards.llm_judge_reward_worker.LLMJudgeRewardWorker
+  llm_judge:  # CRITICAL: Must match domain_interleave_probs key
+    worker_cls: roll.pipeline.rlvr.rewards.performance_gain_reward_worker.PerformanceGainRewardWorker
     reward_type: continuous
-    judge_prompt: "Qwen2.5-7B-Instruct-RLVR-prompt"
-    judge_model_type: "api"
-    model_args:
-      model_name_or_path: ${reward_pretrain}
-    data_args:
-      template: qwen2_5
+    reward_scale: 10.0  # Scale performance_gain to match GRPO reward scale
+    clip_rewards: false  # Don't clip since gains are already normalized
+    world_size: 1  # Single GPU
+    infer_batch_size: 4  # Batch size for reward computation
     tag_included:
       - GSM8K
       - MATH
@@ -226,11 +227,3 @@ rewards:
       - MBPP
       - HotpotQA
       - DROP
-    world_size: 1
-    infer_batch_size: 2
-    device_mapping: list(range(0,1))
-
-    # Query filtering
-    query_filter_config:
-      type: "no_filter"
-      filter_args: {}
